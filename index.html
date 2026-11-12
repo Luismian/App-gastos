@@ -425,6 +425,7 @@ async function deleteSubcatFromCategory(catId, subcatName) {
         if (cat) {
             cat.subcats = cat.subcats.filter(s => s !== subcatName);
             await actualizarSubcategoriasEnSupabase(cat);
+            renderCatManagementList(); // <-- Esto actualiza la lista al momento
         }
     }
 }
@@ -442,7 +443,9 @@ async function addSubcatToCategory(catId) {
         if (!cat.subcats.includes(subName)) {
             cat.subcats.push(subName);
             await actualizarSubcategoriasEnSupabase(cat);
-        }
+            inputEl.value = ''; // Limpia el input
+            renderCatManagementList(); // <-- Esto actualiza la lista al momento
+      }
     }
 }
 
