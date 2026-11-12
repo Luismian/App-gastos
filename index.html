@@ -116,9 +116,6 @@
         <h1 id="monthTitle">Gastos del Mes</h1>
         <div class="header-buttons">
             <button class="btn-small" onclick="setBudget()">🎯 Límite</button>
-            <button class="btn-small" onclick="exportBackup()">💾 Guardar</button>
-            <button class="btn-small" onclick="document.getElementById('importFile').click()">📂 Cargar</button>
-            <input type="file" id="importFile" style="display:none" accept=".json" onchange="importBackup(event)">
         </div>
     </div>
 
@@ -221,72 +218,96 @@ const DEFAULT_CATEGORIES = [
     { id: 'internet', name: 'Internet y tlf.', icon: '📱', subcats: [] }
 ];
 
-let defaultCategoriesState = JSON.parse(localStorage.getItem('my_default_cats_v5')) || DEFAULT_CATEGORIES;
-let customCategories = JSON.parse(localStorage.getItem('my_custom_cats_v5')) || [];
+let categories = [];
 let expenses = []; 
-let monthlyBudget = parseFloat(localStorage.getItem('my_budget_v5')) || 0;
+let monthlyBudget = 0;
 
 function getAllCategories() {
-    return [...defaultCategoriesState, ...customCategories];
+    return categories;
 }
 
-let selectedCat = defaultCategoriesState[0] ? defaultCategoriesState[0].id : '';
+let selectedCat = '';
 let selectedSubcat = '';
 
-// Cargar gastos desde Supabase al iniciar la página
+// Carga inicial desde Supabase
 window.onload = async function() {
     document.getElementById('date').valueAsDate = new Date();
-    await cargarGastosDesdeSupabase();
+    await cargarDatosDesdeSupabase();
 };
 
-// --- FUNCIONES DE SUPABASE PARA LOS GASTOS ---
-async function cargarGastosDesdeSupabase() {
-    const { data, error } = await _supabase
+async function cargarDatosDesdeSupabase() {
+    // 1. Cargar categorías (si la tabla está vacía, inserta las por defecto)
+    let { data: catData, error: catError } = await _supabase.from('categories').select('*');
+    
+    if (catError || !catData || catData.length === 0) {
+        // Inicializar con las por defecto si no hay nada en la nube
+        categories = [...DEFAULT_CATEGORIES];
+        for (let cat of categories) {
+            await _supabase.from('categories').upsert([cat]);
+        }
+    } else {
+        categories = catData;
+    }
+
+    if (categories.length > 0 && !selectedCat) {
+        selectedCat = categories[0].id;
+        selectedSubcat = categories[0].subcats && categories[0].subcats.length > 0 ? categories[0].subcats[0] : '';
+    }
+
+    // 2. Cargar gastos
+    const { data: expData, error: expError } = await _supabase
         .from('expenses')
         .select('*')
         .order('date', { ascending: false });
 
-    if (error) {
-        console.error('Error al cargar de Supabase:', error);
-    } else {
-        expenses = data || [];
-        renderCategories();
-        updateUI();
+    if (!expError) {
+        expenses = expData || [];
     }
+
+    renderCategories();
+    updateUI();
 }
 
+// --- FUNCIONES DE SUPABASE ---
 async function guardarGastoEnSupabase(expense) {
-    const { data, error } = await _supabase
-        .from('expenses')
-        .insert([{
-            amount: expense.amount,
-            category: expense.category,
-            subcat: expense.subcat,
-            note: expense.note,
-            date: expense.date
-        }]);
-
+    const { error } = await _supabase.from('expenses').insert([expense]);
     if (error) {
-        console.error('Error al guardar en Supabase:', error);
-        alert('Hubo un error al guardar en la nube.');
+        alert('Hubo un error al guardar el gasto.');
     } else {
-        await cargarGastosDesdeSupabase();
+        await cargarDatosDesdeSupabase();
     }
 }
 
 async function eliminarGastoEnSupabase(id) {
-    const { error } = await _supabase
-        .from('expenses')
-        .delete()
-        .eq('id', id);
-
-    if (error) {
-        console.error('Error al eliminar en Supabase:', error);
-    } else {
-        await cargarGastosDesdeSupabase();
+    const { error } = await _supabase.from('expenses').delete().eq('id', id);
+    if (!error) {
+        await cargarDatosDesdeSupabase();
     }
 }
-// ---------------------------------------------
+
+async function guardarCategoriaEnSupabase(newCat) {
+    const { error } = await _supabase.from('categories').insert([newCat]);
+    if (error) {
+        alert('Error al guardar la categoría.');
+    } else {
+        await cargarDatosDesdeSupabase();
+    }
+}
+
+async function eliminarCategoriaEnSupabase(id) {
+    const { error } = await _supabase.from('categories').delete().eq('id', id);
+    if (!error) {
+        await cargarDatosDesdeSupabase();
+    }
+}
+
+async function actualizarSubcategoriasEnSupabase(cat) {
+    const { error } = await _supabase.from('categories').update({ subcats: cat.subcats }).eq('id', cat.id);
+    if (!error) {
+        await cargarDatosDesdeSupabase();
+    }
+}
+// -----------------------------
 
 function renderCategories() {
     const grid = document.getElementById('categoriesGrid');
@@ -364,7 +385,7 @@ function pickEmoji(emoji) {
     document.getElementById('newCatIcon').value = emoji;
 }
 
-function saveNewCategory() {
+async function saveNewCategory() {
     const name = document.getElementById('newCatName').value.trim();
     const icon = document.getElementById('newCatIcon').value.trim() || '🏷️';
     const subcatsInput = document.getElementById('newCatSubcats').value.trim();
@@ -383,9 +404,7 @@ function saveNewCategory() {
         subcats: subcats
     };
 
-    customCategories.push(newCat);
-    localStorage.setItem('my_custom_cats_v5', JSON.stringify(customCategories));
-    
+    await guardarCategoriaEnSupabase(newCat);
     selectedCat = newCat.id;
     selectedSubcat = subcats.length > 0 ? subcats[0] : '';
     
@@ -394,146 +413,67 @@ function saveNewCategory() {
     renderCatManagementList();
 }
 
-function deleteCategory(id, isCustom) {
+async function deleteCategory(id) {
     if (confirm('¿Eliminar esta categoría por completo?')) {
-        if (isCustom) {
-            customCategories = customCategories.filter(c => c.id !== id);
-            localStorage.setItem('my_custom_cats_v5', JSON.stringify(customCategories));
-        } else {
-            defaultCategoriesState = defaultCategoriesState.filter(c => c.id !== id);
-            localStorage.setItem('my_default_cats_v5', JSON.stringify(defaultCategoriesState));
-        }
-        renderCatManagementList();
+        await eliminarCategoriaEnSupabase(id);
     }
 }
 
-function deleteSubcatFromCategory(catId, isCustom, subcatName) {
+async function deleteSubcatFromCategory(catId, subcatName) {
     if (confirm(`¿Eliminar la subcategoría "${subcatName}"?`)) {
-        if (isCustom) {
-            const cat = customCategories.find(c => c.id === catId);
-            if (cat) {
-                cat.subcats = cat.subcats.filter(s => s !== subcatName);
-                localStorage.setItem('my_custom_cats_v5', JSON.stringify(customCategories));
-            }
-        } else {
-            const cat = defaultCategoriesState.find(c => c.id === catId);
-            if (cat) {
-                cat.subcats = cat.subcats.filter(s => s !== subcatName);
-                localStorage.setItem('my_default_cats_v5', JSON.stringify(defaultCategoriesState));
-            }
+        const cat = categories.find(c => c.id === catId);
+        if (cat) {
+            cat.subcats = cat.subcats.filter(s => s !== subcatName);
+            await actualizarSubcategoriasEnSupabase(cat);
         }
-        renderCatManagementList();
     }
 }
 
-function addSubcatToCategory(catId, isCustom) {
+async function addSubcatToCategory(catId) {
     const inputId = `input_sub_${catId}`;
     const inputEl = document.getElementById(inputId);
     const subName = inputEl.value.trim();
 
     if (!subName) return;
 
-    if (isCustom) {
-        const cat = customCategories.find(c => c.id === catId);
-        if (cat) {
-            if (!cat.subcats) cat.subcats = [];
-            if (!cat.subcats.includes(subName)) {
-                cat.subcats.push(subName);
-                localStorage.setItem('my_custom_cats_v5', JSON.stringify(customCategories));
-            }
-        }
-    } else {
-        const cat = defaultCategoriesState.find(c => c.id === catId);
-        if (cat) {
-            if (!cat.subcats) cat.subcats = [];
-            if (!cat.subcats.includes(subName)) {
-                cat.subcats.push(subName);
-                localStorage.setItem('my_default_cats_v5', JSON.stringify(defaultCategoriesState));
-            }
+    const cat = categories.find(c => c.id === catId);
+    if (cat) {
+        if (!cat.subcats) cat.subcats = [];
+        if (!cat.subcats.includes(subName)) {
+            cat.subcats.push(subName);
+            await actualizarSubcategoriasEnSupabase(cat);
         }
     }
-    renderCatManagementList();
 }
 
 function renderCatManagementList() {
     const container = document.getElementById('catManagementList');
-    const allCatsWithSource = [
-        ...defaultCategoriesState.map(c => ({ ...c, isCustom: false })),
-        ...customCategories.map(c => ({ ...c, isCustom: true }))
-    ];
-
-    if (allCatsWithSource.length === 0) {
+    if (categories.length === 0) {
         container.innerHTML = '<p style="text-align:center; color:var(--muted); font-size:0.85rem;">No hay categorías creadas.</p>';
         return;
     }
 
     container.innerHTML = '<div style="font-size:0.85rem; font-weight: 600; margin-bottom: 8px; color: var(--muted);">Categorías existentes y subcategorías:</div>' +
-        allCatsWithSource.map(c => `
+        categories.map(c => `
             <div class="cat-manage-item">
                 <div class="cat-manage-header">
                     <span>${c.icon} ${c.name}</span>
-                    <button class="btn-del" onclick="deleteCategory('${c.id}', ${c.isCustom})" style="font-size:0.8rem;">Eliminar Categoría</button>
+                    <button class="btn-del" onclick="deleteCategory('${c.id}')" style="font-size:0.8rem;">Eliminar Categoría</button>
                 </div>
                 <div class="subcat-tags-inline">
                     ${c.subcats && c.subcats.length > 0 ? c.subcats.map(sub => `
                         <span class="subcat-tag-badge">
                             ${sub}
-                            <button onclick="deleteSubcatFromCategory('${c.id}', ${c.isCustom}, '${sub}')" title="Eliminar subcategoría">×</button>
+                            <button onclick="deleteSubcatFromCategory('${c.id}', '${sub}')" title="Eliminar subcategoría">×</button>
                         </span>
                     `).join('') : '<span style="font-size:0.75rem; color:var(--muted);">Sin subcategorías</span>'}
                 </div>
                 <div class="add-subcat-row">
                     <input type="text" id="input_sub_${c.id}" placeholder="Nueva subcategoría...">
-                    <button onclick="addSubcatToCategory('${c.id}', ${c.isCustom})">+ Añadir</button>
+                    <button onclick="addSubcatToCategory('${c.id}')">+ Añadir</button>
                 </div>
             </div>
         `).join('');
-}
-
-function exportBackup() {
-    const backupData = {
-        expenses: expenses,
-        defaultCategoriesState: defaultCategoriesState,
-        customCategories: customCategories,
-        monthlyBudget: monthlyBudget
-    };
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupData, null, 2));
-    const downloadAnchor = document.createElement('a');
-    downloadAnchor.setAttribute("href", dataStr);
-    downloadAnchor.setAttribute("download", `copia_seguridad_gastos_${new Date().toISOString().slice(0,10)}.json`);
-    document.body.appendChild(downloadAnchor);
-    downloadAnchor.click();
-    downloadAnchor.remove();
-}
-
-function importBackup(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = function(e) {
-        try {
-            const data = JSON.parse(e.target.result);
-            if (data.defaultCategoriesState) {
-                defaultCategoriesState = data.defaultCategoriesState;
-                localStorage.setItem('my_default_cats_v5', JSON.stringify(defaultCategoriesState));
-            }
-            if (data.customCategories) {
-                customCategories = data.customCategories;
-                localStorage.setItem('my_custom_cats_v5', JSON.stringify(customCategories));
-            }
-            if (data.monthlyBudget !== undefined) {
-                monthlyBudget = data.monthlyBudget;
-                localStorage.setItem('my_budget_v5', monthlyBudget);
-            }
-            renderCategories();
-            updateUI();
-            alert('¡Copia de seguridad restaurada con éxito!');
-        } catch (error) {
-            alert('El archivo no es válido.');
-        }
-    };
-    reader.readAsText(file);
 }
 
 function addExpense() {
@@ -570,7 +510,6 @@ function setBudget() {
     const val = prompt('Introduce tu presupuesto mensual máximo (€):', monthlyBudget || '');
     if (val !== null) {
         monthlyBudget = parseFloat(val) || 0;
-        localStorage.setItem('my_budget_v5', monthlyBudget);
         updateUI();
     }
 }
