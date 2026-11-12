@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Mis Gastos Diarios</title>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --bg: #f8fafc;
+            --card: #ffffff;
+            --text: #1e293b;
+            --muted: #64748b;
+            --danger: #ef4444;
+            --success: #10b981;
+            --border: #e2e8f0;
+        }
+        * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        body { background: var(--bg); color: var(--text); margin: 0; padding: 16px; padding-bottom: 40px; }
+        .container { max-width: 480px; margin: 0 auto; }
+        
+        /* Cabecera y Presupuesto */
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .header h1 { font-size: 1.3rem; margin: 0; }
+        .header-buttons { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+        .btn-small { background: none; border: 1px solid var(--border); padding: 5px 8px; border-radius: 8px; font-size: 0.75rem; color: var(--muted); cursor: pointer; }
+        
+        .summary-card { background: var(--card); border-radius: 16px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); margin-bottom: 16px; }
+        .total-label { font-size: 0.85rem; color: var(--muted); }
+        .total-amount { font-size: 2.2rem; font-weight: 700; margin: 4px 0 12px 0; }
+        
+        .progress-bg { background: var(--border); height: 10px; border-radius: 99px; overflow: hidden; margin-bottom: 8px; }
+        .progress-fill { background: var(--primary); height: 100%; width: 0%; transition: width 0.3s, background 0.3s; }
+        .budget-info { display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--muted); }
+        
+        /* Formulario */
+        .card { background: var(--card); border-radius: 16px; padding: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); margin-bottom: 16px; }
+        .input-group { margin-bottom: 14px; }
+        .input-amount { width: 100%; font-size: 1.8rem; font-weight: 700; padding: 12px; border: 2px solid var(--border); border-radius: 12px; text-align: center; outline: none; }
+        .input-amount:focus { border-color: var(--primary); }
+        
+        .categories-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; }
+        .cat-btn { background: var(--bg); border: 2px solid transparent; border-radius: 12px; padding: 10px 4px; text-align: center; cursor: pointer; transition: all 0.2s; position: relative; }
+        .cat-btn.active { border-color: var(--primary); background: #eff6ff; font-weight: 600; }
+        .cat-btn.add-cat { border: 2px dashed var(--border); background: transparent; color: var(--muted); }
+        .cat-icon { font-size: 1.4rem; display: block; margin-bottom: 4px; }
+        .cat-name { font-size: 0.72rem; display: block; line-height: 1.1; }
+
+        /* Subcategorías */
+        .subcat-container { background: #f1f5f9; padding: 10px; border-radius: 10px; margin-bottom: 14px; display: none; }
+        .subcat-container.open { display: block; }
+        .subcat-label { font-size: 0.75rem; color: var(--muted); margin-bottom: 6px; font-weight: 600; display: block; }
+        .subcat-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+        .subcat-chip { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 4px 8px; font-size: 0.8rem; cursor: pointer; }
+        .subcat-chip.active { background: var(--primary); color: white; border-color: var(--primary); }
+        
+        .row-inputs { display: flex; gap: 8px; margin-bottom: 14px; }
+        .input-text, .input-date { padding: 10px; border: 1px solid var(--border); border-radius: 10px; font-size: 0.9rem; outline: none; background: white; }
+        .input-text { flex: 2; }
+        .input-date { flex: 1; }
+        
+        .btn-submit { width: 100%; background: var(--primary); color: white; border: none; padding: 14px; border-radius: 12px; font-size: 1rem; font-weight: 600; cursor: pointer; }
+        .btn-submit:active { opacity: 0.9; }
+
+        /* Pestañas */
+        .tabs { display: flex; gap: 8px; margin-bottom: 12px; }
+        .tab { flex: 1; padding: 10px; text-align: center; background: var(--card); border-radius: 10px; font-size: 0.9rem; font-weight: 600; color: var(--muted); cursor: pointer; border: 1px solid var(--border); }
+        .tab.active { background: var(--primary); color: white; border-color: var(--primary); }
+
+        /* Listas */
+        .expense-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--border); }
+        .expense-item:last-child { border-bottom: none; }
+        .exp-left { display: flex; align-items: center; gap: 10px; }
+        .exp-icon { font-size: 1.4rem; background: var(--bg); width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border-radius: 10px; }
+        .exp-title { font-weight: 600; font-size: 0.9rem; }
+        .exp-sub { font-size: 0.75rem; color: var(--muted); }
+        .exp-right { text-align: right; display: flex; align-items: center; gap: 10px; }
+        .exp-amount { font-weight: 700; font-size: 0.95rem; }
+        .btn-del { background: none; border: none; color: var(--danger); font-size: 1.1rem; cursor: pointer; padding: 4px; }
+
+        /* Desglose */
+        .cat-stat { margin-bottom: 12px; }
+        .cat-stat-header { display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 4px; font-weight: 500; }
+        .stat-bar-bg { background: var(--bg); height: 8px; border-radius: 99px; overflow: hidden; }
+        .stat-bar-fill { background: var(--primary); height: 100%; }
+        .subcat-stat-list { margin-left: 20px; margin-top: 4px; font-size: 0.8rem; color: var(--muted); }
+
+        /* Modal Categorías / Subcategorías */
+        .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.5); z-index: 100; align-items: center; justify-content: center; padding: 16px; }
+        .modal-overlay.open { display: flex; }
+        .modal-box { background: var(--card); border-radius: 16px; padding: 20px; width: 100%; max-width: 400px; box-shadow: 0 10px 25px rgba(0,0,0,0.15); max-height: 90vh; overflow-y: auto; }
+        .modal-title { font-size: 1.1rem; font-weight: 700; margin: 0 0 14px 0; display: flex; justify-content: space-between; align-items: center; }
+        .emoji-presets { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 14px 0; }
+        .emoji-chip { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; font-size: 1.2rem; cursor: pointer; }
+        .modal-actions { display: flex; gap: 8px; margin-top: 12px; }
+        
+        .cat-management-list { margin-top: 16px; border-top: 1px solid var(--border); padding-top: 12px; }
+        .cat-manage-item { background: var(--bg); border-radius: 10px; padding: 10px; margin-bottom: 8px; }
+        .cat-manage-header { display: flex; justify-content: space-between; align-items: center; font-size: 0.9rem; font-weight: 600; margin-bottom: 6px; }
+        .subcat-tags-inline { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
+        .subcat-tag-badge { background: white; border: 1px solid var(--border); border-radius: 6px; padding: 2px 6px; font-size: 0.75rem; display: flex; align-items: center; gap: 4px; }
+        .subcat-tag-badge button { border: none; background: none; color: var(--danger); font-weight: bold; cursor: pointer; padding: 0; font-size: 0.8rem; }
+        
+        .add-subcat-row { display: flex; gap: 6px; }
+        .add-subcat-row input { flex: 1; padding: 6px 8px; font-size: 0.8rem; border: 1px solid var(--border); border-radius: 6px; outline: none; background: white; }
+        .add-subcat-row button { background: var(--primary); color: white; border: none; border-radius: 6px; padding: 6px 10px; font-size: 0.75rem; cursor: pointer; font-weight: 600; }
+    </style>
+	<link rel="manifest" href="manifest.json">
+	<meta name="theme-color" content="#2563eb">
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <h1 id="monthTitle">Gastos del Mes</h1>
+        <div class="header-buttons">
+            <button class="btn-small" onclick="setBudget()">🎯 Límite</button>
+            <button class="btn-small" onclick="exportCSV()">📥 Excel</button>
+            <button class="btn-small" onclick="exportBackup()">💾 Guardar</button>
+            <button class="btn-small" onclick="document.getElementById('importFile').click()">📂 Cargar</button>
+            <input type="file" id="importFile" style="display:none" accept=".json" onchange="importBackup(event)">
+        </div>
+    </div>
+
+    <div class="summary-card">
+        <div class="total-label">Total gastado este mes</div>
+        <div class="total-amount" id="totalSpent">0,00 €</div>
+        <div class="progress-bg"><div class="progress-fill" id="progressBar"></div></div>
+        <div class="budget-info">
+            <span id="budgetStatus">Sin límite fijado</span>
+            <span id="budgetRemaining"></span>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="input-group">
+            <input type="number" id="amount" class="input-amount" placeholder="0.00 €" step="0.01" inputmode="decimal">
+        </div>
+
+        <div class="categories-grid" id="categoriesGrid"></div>
+
+        <!-- Contenedor dinámico de subcategorías -->
+        <div class="subcat-container" id="subcatContainer">
+            <span class="subcat-label">Subcategoría:</span>
+            <div class="subcat-chips" id="subcatChips"></div>
+        </div>
+
+        <div class="row-inputs">
+            <input type="text" id="note" class="input-text" placeholder="Nota adicional (opcional)">
+            <input type="date" id="date" class="input-date">
+        </div>
+
+        <button class="btn-submit" onclick="addExpense()">+ Añadir Gasto</button>
+    </div>
+
+    <div class="tabs">
+        <div class="tab active" onclick="switchTab('list', this)">Últimos Movimientos</div>
+        <div class="tab" onclick="switchTab('stats', this)">Por Categoría</div>
+    </div>
+
+    <div class="card" id="listView">
+        <div id="expensesList"></div>
+    </div>
+
+    <div class="card" id="statsView" style="display:none;">
+        <div id="categoryStats"></div>
+    </div>
+</div>
+
+<!-- Modal para añadir o gestionar categorías y subcategorías -->
+<div class="modal-overlay" id="catModal">
+    <div class="modal-box">
+        <div class="modal-title">
+            <span>Gestionar Categorías</span>
+            <button class="btn-del" onclick="closeCatModal()">×</button>
+        </div>
+        
+        <div style="font-size: 0.85rem; font-weight: 600; margin-bottom: 6px; color: var(--muted);">Crear nueva categoría:</div>
+        <div class="row-inputs" style="margin-bottom: 6px;">
+            <input type="text" id="newCatIcon" class="input-text" style="flex: 0 0 60px; text-align: center; font-size: 1.2rem;" value="🏷️" maxlength="2">
+            <input type="text" id="newCatName" class="input-text" placeholder="Nombre (ej. Mascotas...)">
+        </div>
+        <div class="input-group" style="margin-bottom: 10px;">
+            <input type="text" id="newCatSubcats" class="input-text" style="width: 100%; font-size: 0.85rem;" placeholder="Subcategorías separadas por comas (opcional)">
+        </div>
+        <div class="emoji-presets">
+            <button type="button" class="emoji-chip" onclick="pickEmoji('🐾')">🐾</button>
+            <button type="button" class="emoji-chip" onclick="pickEmoji('🎬')">🎬</button>
+            <button type="button" class="emoji-chip" onclick="pickEmoji('💊')">💊</button>
+            <button type="button" class="emoji-chip" onclick="pickEmoji('🎁')">🎁</button>
+            <button type="button" class="emoji-chip" onclick="pickEmoji('🏠')">🏠</button>
+            <button type="button" class="emoji-chip" onclick="pickEmoji('📚')">📚</button>
+            <button type="button" class="emoji-chip" onclick="pickEmoji('☕')">☕</button>
+            <button type="button" class="emoji-chip" onclick="pickEmoji('🛠️')">🛠️</button>
+        </div>
+        <div class="modal-actions">
+            <button class="btn-submit" style="width: 100%; padding: 12px;" onclick="saveNewCategory()">+ Guardar Categoría</button>
+        </div>
+
+        <!-- Listado completo para añadir subcategorías y eliminar -->
+        <div class="cat-management-list" id="catManagementList"></div>
+    </div>
+</div>
+
+<script>
+    const DEFAULT_CATEGORIES = [
+        { id: 'compra', name: 'Supermercado', icon: '🛒', subcats: ['Mercadona', 'Eroski', 'Lidl', 'Carrefour', 'Frutería'] },
+        { id: 'comidas', name: 'Comidas', icon: '🍽️', subcats: ['Restaurantes', 'Cafetería', 'Comida rápida'] },
+        { id: 'gasoleo', name: 'Gasóleo', icon: '⛽', subcats: ['Gasolina', 'Peajes', 'Parking'] },
+        { id: 'deporte', name: 'Deporte', icon: '🏃', subcats: ['Gimnasio', 'Equipamiento'] },
+        { id: 'ropa', name: 'Ropa', icon: '👕', subcats: [] },
+        { id: 'viajes', name: 'Viajes', icon: '✈️', subcats: ['Hoteles', 'Vuelos', 'Tren'] },
+        { id: 'luz', name: 'Luz', icon: '💡', subcats: [] },
+        { id: 'agua', name: 'Agua', icon: '💧', subcats: [] },
+        { id: 'internet', name: 'Internet y tlf.', icon: '📱', subcats: [] }
+    ];
+
+    // Forzamos a actualizar las categorías por defecto asegurando que se carguen con sus subcategorías
+    let defaultCategoriesState = JSON.parse(localStorage.getItem('my_default_cats_v5')) || DEFAULT_CATEGORIES;
+    let customCategories = JSON.parse(localStorage.getItem('my_custom_cats_v5')) || [];
+    let expenses = JSON.parse(localStorage.getItem('my_expenses_v5')) || [];
+    let monthlyBudget = parseFloat(localStorage.getItem('my_budget_v5')) || 0;
+
+    function getAllCategories() {
+        return [...defaultCategoriesState, ...customCategories];
+    }
+
+    let selectedCat = defaultCategoriesState[0] ? defaultCategoriesState[0].id : '';
+    let selectedSubcat = '';
+
+    document.getElementById('date').valueAsDate = new Date();
+
+    function renderCategories() {
+        const grid = document.getElementById('categoriesGrid');
+        const allCats = getAllCategories();
+        
+        if (!allCats.some(c => c.id === selectedCat) && allCats.length > 0) {
+            selectedCat = allCats[0].id;
+            selectedSubcat = allCats[0].subcats && allCats[0].subcats.length > 0 ? allCats[0].subcats[0] : '';
+        }
+
+        let html = allCats.map(cat => `
+            <div class="cat-btn ${cat.id === selectedCat ? 'active' : ''}" onclick="selectCategory('${cat.id}')">
+                <span class="cat-icon">${cat.icon}</span>
+                <span class="cat-name">${cat.name}</span>
+            </div>
+        `).join('');
+
+        html += `
+            <div class="cat-btn add-cat" onclick="openCatModal()">
+                <span class="cat-icon">➕</span>
+                <span class="cat-name">Editar / Añadir</span>
+            </div>
+        `;
+
+        grid.innerHTML = html;
+        renderSubcategories();
+    }
+
+    function selectCategory(id) {
+        selectedCat = id;
+        const allCats = getAllCategories();
+        const cat = allCats.find(c => c.id === id);
+        selectedSubcat = (cat && cat.subcats && cat.subcats.length > 0) ? cat.subcats[0] : '';
+        renderCategories();
+    }
+
+    function renderSubcategories() {
+        const allCats = getAllCategories();
+        const cat = allCats.find(c => c.id === selectedCat);
+        const container = document.getElementById('subcatContainer');
+        const chipsContainer = document.getElementById('subcatChips');
+
+        if (!cat || !cat.subcats || cat.subcats.length === 0) {
+            container.classList.remove('open');
+            selectedSubcat = '';
+            return;
+        }
+
+        container.classList.add('open');
+        chipsContainer.innerHTML = cat.subcats.map(sub => `
+            <div class="subcat-chip ${sub === selectedSubcat ? 'active' : ''}" onclick="selectSubcat('${sub}')">${sub}</div>
+        `).join('');
+    }
+
+    function selectSubcat(sub) {
+        selectedSubcat = sub;
+        renderSubcategories();
+    }
+
+    // Funciones del Modal
+    function openCatModal() {
+        document.getElementById('newCatName').value = '';
+        document.getElementById('newCatIcon').value = '🏷️';
+        document.getElementById('newCatSubcats').value = '';
+        renderCatManagementList();
+        document.getElementById('catModal').classList.add('open');
+    }
+
+    function closeCatModal() {
+        document.getElementById('catModal').classList.remove('open');
+        renderCategories();
+        updateUI();
+    }
+
+    function pickEmoji(emoji) {
+        document.getElementById('newCatIcon').value = emoji;
+    }
+
+    function saveNewCategory() {
+        const name = document.getElementById('newCatName').value.trim();
+        const icon = document.getElementById('newCatIcon').value.trim() || '🏷️';
+        const subcatsInput = document.getElementById('newCatSubcats').value.trim();
+        
+        const subcats = subcatsInput ? subcatsInput.split(',').map(s => s.trim()).filter(s => s.length > 0) : [];
+
+        if (!name) {
+            alert('Escribe un nombre para la categoría.');
+            return;
+        }
+
+        const newCat = {
+            id: 'custom_' + Date.now(),
+            name: name,
+            icon: icon,
+            subcats: subcats
+        };
+
+        customCategories.push(newCat);
+        localStorage.setItem('my_custom_cats_v5', JSON.stringify(customCategories));
+        
+        selectedCat = newCat.id;
+        selectedSubcat = subcats.length > 0 ? subcats[0] : '';
+        
+        document.getElementById('newCatName').value = '';
+        document.getElementById('newCatSubcats').value = '';
+        renderCatManagementList();
+    }
+
+    function deleteCategory(id, isCustom) {
+        if (confirm('¿Eliminar esta categoría por completo? Los gastos ya guardados conservarán su nombre histórico.')) {
+            if (isCustom) {
+                customCategories = customCategories.filter(c => c.id !== id);
+                localStorage.setItem('my_custom_cats_v5', JSON.stringify(customCategories));
+            } else {
+                defaultCategoriesState = defaultCategoriesState.filter(c => c.id !== id);
+                localStorage.setItem('my_default_cats_v5', JSON.stringify(defaultCategoriesState));
+            }
+            renderCatManagementList();
+        }
+    }
+
+    function deleteSubcatFromCategory(catId, isCustom, subcatName) {
+        if (confirm(`¿Eliminar la subcategoría "${subcatName}"?`)) {
+            if (isCustom) {
+                const cat = customCategories.find(c => c.id === catId);
+                if (cat) {
+                    cat.subcats = cat.subcats.filter(s => s !== subcatName);
+                    localStorage.setItem('my_custom_cats_v5', JSON.stringify(customCategories));
+                }
+            } else {
+                const cat = defaultCategoriesState.find(c => c.id === catId);
+                if (cat) {
+                    cat.subcats = cat.subcats.filter(s => s !== subcatName);
+                    localStorage.setItem('my_default_cats_v5', JSON.stringify(defaultCategoriesState));
+                }
+            }
+            renderCatManagementList();
+        }
+    }
+
+    function addSubcatToCategory(catId, isCustom) {
+        const inputId = `input_sub_${catId}`;
+        const inputEl = document.getElementById(inputId);
+        const subName = inputEl.value.trim();
+
+        if (!subName) return;
+
+        if (isCustom) {
+            const cat = customCategories.find(c => c.id === catId);
+            if (cat) {
+                if (!cat.subcats) cat.subcats = [];
+                if (!cat.subcats.includes(subName)) {
+                    cat.subcats.push(subName);
+                    localStorage.setItem('my_custom_cats_v5', JSON.stringify(customCategories));
+                }
+            }
+        } else {
+            const cat = defaultCategoriesState.find(c => c.id === catId);
+            if (cat) {
+                if (!cat.subcats) cat.subcats = [];
+                if (!cat.subcats.includes(subName)) {
+                    cat.subcats.push(subName);
+                    localStorage.setItem('my_default_cats_v5', JSON.stringify(defaultCategoriesState));
+                }
+            }
+        }
+        renderCatManagementList();
+    }
+
+    function renderCatManagementList() {
+        const container = document.getElementById('catManagementList');
+        const allCatsWithSource = [
+            ...defaultCategoriesState.map(c => ({ ...c, isCustom: false })),
+            ...customCategories.map(c => ({ ...c, isCustom: true }))
+        ];
+
+        if (allCatsWithSource.length === 0) {
+            container.innerHTML = '<p style="text-align:center; color:var(--muted); font-size:0.85rem;">No hay categorías creadas.</p>';
+            return;
+        }
+
+        container.innerHTML = '<div style="font-size:0.85rem; font-weight: 600; margin-bottom: 8px; color: var(--muted);">Categorías existentes y subcategorías:</div>' +
+            allCatsWithSource.map(c => `
+                <div class="cat-manage-item">
+                    <div class="cat-manage-header">
+                        <span>${c.icon} ${c.name}</span>
+                        <button class="btn-del" onclick="deleteCategory('${c.id}', ${c.isCustom})" style="font-size:0.8rem;">Eliminar Categoría</button>
+                    </div>
+                    <div class="subcat-tags-inline">
+                        ${c.subcats && c.subcats.length > 0 ? c.subcats.map(sub => `
+                            <span class="subcat-tag-badge">
+                                ${sub}
+                                <button onclick="deleteSubcatFromCategory('${c.id}', ${c.isCustom}, '${sub}')" title="Eliminar subcategoría">×</button>
+                            </span>
+                        `).join('') : '<span style="font-size:0.75rem; color:var(--muted);">Sin subcategorías</span>'}
+                    </div>
+                    <div class="add-subcat-row">
+                        <input type="text" id="input_sub_${c.id}" placeholder="Nueva subcategoría...">
+                        <button onclick="addSubcatToCategory('${c.id}', ${c.isCustom})">+ Añadir</button>
+                    </div>
+                </div>
+            `).join('');
+    }
+
+    // Funciones de Copia de Seguridad (Exportar / Importar JSON)
+    function exportBackup() {
+        const backupData = {
+            expenses: expenses,
+            defaultCategoriesState: defaultCategoriesState,
+            customCategories: customCategories,
+            monthlyBudget: monthlyBudget
+        };
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupData, null, 2));
+        const downloadAnchor = document.createElement('a');
+        downloadAnchor.setAttribute("href", dataStr);
+        downloadAnchor.setAttribute("download", `copia_seguridad_gastos_${new Date().toISOString().slice(0,10)}.json`);
+        document.body.appendChild(downloadAnchor);
+        downloadAnchor.click();
+        downloadAnchor.remove();
+    }
+
+    function importBackup(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const data = JSON.parse(e.target.result);
+                if (data.expenses) {
+                    expenses = data.expenses;
+                    localStorage.setItem('my_expenses_v5', JSON.stringify(expenses));
+                }
+                if (data.defaultCategoriesState) {
+                    defaultCategoriesState = data.defaultCategoriesState;
+                    localStorage.setItem('my_default_cats_v5', JSON.stringify(defaultCategoriesState));
+                }
+                if (data.customCategories) {
+                    customCategories = data.customCategories;
+                    localStorage.setItem('my_custom_cats_v5', JSON.stringify(customCategories));
+                }
+                if (data.monthlyBudget !== undefined) {
+                    monthlyBudget = data.monthlyBudget;
+                    localStorage.setItem('my_budget_v5', monthlyBudget);
+                }
+                renderCategories();
+                updateUI();
+                alert('¡Copia de seguridad restaurada con éxito!');
+            } catch (error) {
+                alert('El archivo no es válido.');
+            }
+        };
+        reader.readAsText(file);
+    }
+
+    function addExpense() {
+        const amount = parseFloat(document.getElementById('amount').value);
+        const note = document.getElementById('note').value.trim();
+        const date = document.getElementById('date').value;
+
+        if (!amount || amount <= 0) {
+            alert('Introduce un importe válido.');
+            return;
+        }
+
+        const expense = {
+            id: Date.now(),
+            amount,
+            category: selectedCat,
+            subcat: selectedSubcat,
+            note,
+            date: date || new Date().toISOString().split('T')[0]
+        };
+
+        expenses.unshift(expense);
+        saveData();
+        
+        document.getElementById('amount').value = '';
+        document.getElementById('note').value = '';
+        updateUI();
+    }
+
+    function deleteExpense(id) {
+        if(confirm('¿Eliminar este gasto?')) {
+            expenses = expenses.filter(e => e.id !== id);
+            saveData();
+            updateUI();
+        }
+    }
+
+    function setBudget() {
+        const val = prompt('Introduce tu presupuesto mensual máximo (€):', monthlyBudget || '');
+        if (val !== null) {
+            monthlyBudget = parseFloat(val) || 0;
+            localStorage.setItem('my_budget_v5', monthlyBudget);
+            updateUI();
+        }
+    }
+
+    function saveData() {
+        localStorage.setItem('my_expenses_v5', JSON.stringify(expenses));
+    }
+
+    function formatMoney(num) {
+        return num.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+    }
+
+    function updateUI() {
+        const allCats = getAllCategories();
+        const now = new Date();
+        const currentMonth = now.toISOString().slice(0, 7);
+        const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+        document.getElementById('monthTitle').innerText = `Gastos de ${monthNames[now.getMonth()]}`;
+
+        const monthExpenses = expenses.filter(e => e.date.startsWith(currentMonth));
+        const total = monthExpenses.reduce((sum, e) => sum + e.amount, 0);
+
+        document.getElementById('totalSpent').innerText = formatMoney(total);
+
+        const bar = document.getElementById('progressBar');
+        const status = document.getElementById('budgetStatus');
+        const remaining = document.getElementById('budgetRemaining');
+
+        if (monthlyBudget > 0) {
+            const pct = Math.min((total / monthlyBudget) * 100, 100);
+            bar.style.width = pct + '%';
+            bar.style.background = pct > 90 ? 'var(--danger)' : (pct > 75 ? '#f59e0b' : 'var(--primary)');
+            status.innerText = `Límite: ${formatMoney(monthlyBudget)}`;
+            const left = monthlyBudget - total;
+            remaining.innerText = left >= 0 ? `Quedan ${formatMoney(left)}` : `Excedido en ${formatMoney(Math.abs(left))}`;
+        } else {
+            bar.style.width = '0%';
+            status.innerText = 'Pulsa "🎯 Límite" para fijar tope';
+            remaining.innerText = '';
+        }
+
+        const listDiv = document.getElementById('expensesList');
+        if (expenses.length === 0) {
+            listDiv.innerHTML = '<p style="text-align:center; color:var(--muted); font-size:0.9rem;">Aún no hay gastos registrados.</p>';
+        } else {
+            listDiv.innerHTML = expenses.slice(0, 30).map(e => {
+                const cat = allCats.find(c => c.id === e.category) || { name: 'Otros', icon: '🏷️' };
+                const subText = e.subcat ? ` • ${e.subcat}` : '';
+                const mainTitle = e.note ? e.note : (e.subcat || cat.name);
+                return `
+                    <div class="expense-item">
+                        <div class="exp-left">
+                            <div class="exp-icon">${cat.icon}</div>
+                            <div>
+                                <div class="exp-title">${mainTitle}</div>
+                                <div class="exp-sub">${cat.name}${subText} • ${e.date.split('-').reverse().join('/')}</div>
+                            </div>
+                        </div>
+                        <div class="exp-right">
+                            <span class="exp-amount">-${formatMoney(e.amount)}</span>
+                            <button class="btn-del" onclick="deleteExpense(${e.id})">×</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        const statsDiv = document.getElementById('categoryStats');
+        if (total === 0) {
+            statsDiv.innerHTML = '<p style="text-align:center; color:var(--muted); font-size:0.9rem;">Sin gastos este mes.</p>';
+        } else {
+            const totalsByCat = allCats.map(cat => {
+                const catExpenses = monthExpenses.filter(e => e.category === cat.id);
+                const sum = catExpenses.reduce((s, e) => s + e.amount, 0);
+                
+                let subcatsStats = [];
+                if (cat.subcats) {
+                    subcatsStats = cat.subcats.map(sub => {
+                        const subSum = catExpenses.filter(e => e.subcat === sub).reduce((s, e) => s + e.amount, 0);
+                        return { name: sub, sum: subSum };
+                    }).filter(s => s.sum > 0);
+                }
+                return { ...cat, sum, subcatsStats };
+            }).filter(c => c.sum > 0).sort((a, b) => b.sum - a.sum);
+
+            statsDiv.innerHTML = totalsByCat.map(c => {
+                const pct = ((c.sum / total) * 100).toFixed(1);
+                let subHtml = '';
+                if (c.subcatsStats && c.subcatsStats.length > 0) {
+                    subHtml = c.subcatsStats.map(sub => `<div class="subcat-stat-list">↳ ${sub.name}: ${formatMoney(sub.sum)}</div>`).join('');
+                }
+                return `
+                    <div class="cat-stat">
+                        <div class="cat-stat-header">
+                            <span>${c.icon} ${c.name} (${pct}%)</span>
+                            <span>${formatMoney(c.sum)}</span>
+                        </div>
+                        <div class="stat-bar-bg">
+                            <div class="stat-bar-fill" style="width:${pct}%"></div>
+                        </div>
+                        ${subHtml}
+                    </div>
+                `;
+            }).join('');
+        }
+    }
+
+    function switchTab(tab, el) {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        el.classList.add('active');
+        document.getElementById('listView').style.display = tab === 'list' ? 'block' : 'none';
+        document.getElementById('statsView').style.display = tab === 'stats' ? 'block' : 'none';
+    }
+
+    function exportCSV() {
+        if (expenses.length === 0) return alert('No hay datos para exportar.');
+        const allCats = getAllCategories();
+        let csv = 'Fecha;Categoria;Subcategoria;Nota;Importe\n';
+        expenses.forEach(e => {
+            const cat = allCats.find(c => c.id === e.category)?.name || 'Otros';
+            const sub = e.subcat || '';
+            csv += `${e.date};${cat};${sub};"${e.note}";${e.amount.toString().replace('.', ',')}\n`;
+        });
+        const blob = new Blob(["\uFEFF" + csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `mis_gastos_${new Date().toISOString().slice(0,10)}.csv`;
+        link.click();
+    }
+
+    renderCategories();
+    updateUI();
+</script>
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js')
+        .then((reg) => console.log('Service Worker registrado con éxito', reg))
+        .catch((err) => console.log('Error al registrar el Service Worker', err));
+    });
+  }
+</script>
+
+</body>
+</html>
