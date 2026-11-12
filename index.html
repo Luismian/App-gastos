@@ -240,7 +240,6 @@ async function cargarDatosDesdeSupabase() {
     let { data: catData, error: catError } = await _supabase.from('categories').select('*');
     
     if (catError || !catData || catData.length === 0) {
-        // Inicializar con las por defecto si no hay nada en la nube
         categories = [...DEFAULT_CATEGORIES];
         for (let cat of categories) {
             await _supabase.from('categories').upsert([cat]);
@@ -289,23 +288,21 @@ async function guardarCategoriaEnSupabase(newCat) {
     const { error } = await _supabase.from('categories').insert([newCat]);
     if (error) {
         alert('Error al guardar la categoría.');
-    } else {
-        await cargarDatosDesdeSupabase();
     }
 }
 
 async function eliminarCategoriaEnSupabase(id) {
     const { error } = await _supabase.from('categories').delete().eq('id', id);
     if (!error) {
-        await cargarDatosDesdeSupabase();
+        categories = categories.filter(c => c.id !== id);
+        renderCatManagementList();
+        renderCategories();
+        updateUI();
     }
 }
 
 async function actualizarSubcategoriasEnSupabase(cat) {
-    const { error } = await _supabase.from('categories').update({ subcats: cat.subcats }).eq('id', cat.id);
-    if (!error) {
-        await cargarDatosDesdeSupabase();
-    }
+    await _supabase.from('categories').update({ subcats: cat.subcats }).eq('id', cat.id);
 }
 // -----------------------------
 
@@ -404,13 +401,19 @@ async function saveNewCategory() {
         subcats: subcats
     };
 
-    await guardarCategoriaEnSupabase(newCat);
+    // Actualización local inmediata
+    categories.push(newCat);
+    renderCatManagementList();
+    renderCategories();
+
     selectedCat = newCat.id;
     selectedSubcat = subcats.length > 0 ? subcats[0] : '';
     
     document.getElementById('newCatName').value = '';
     document.getElementById('newCatSubcats').value = '';
-    renderCatManagementList();
+
+    // Guardar en Supabase en segundo plano
+    await guardarCategoriaEnSupabase(newCat);
 }
 
 async function deleteCategory(id) {
@@ -424,18 +427,19 @@ async function deleteSubcatFromCategory(catId, subcatName) {
         const cat = categories.find(c => c.id === catId);
         if (cat) {
             cat.subcats = cat.subcats.filter(s => s !== subcatName);
-            // Actualizamos la lista en pantalla al instante para que se vea ya
+            
+            // Refresco local instantáneo
             renderCatManagementList();
             renderCategories();
-            // Y guardamos en segundo plano en Supabase
+            
+            // Sincronización en segundo plano
             await actualizarSubcategoriasEnSupabase(cat);
         }
     }
 }
 
-async function addSubcatToCategory(catId) {
-    const inputId = `input_sub_${catId}`;
-    const inputEl = document.getElementById(inputId);
+async function addSubcatToCategory(catId, btnElement) {
+    const inputEl = btnElement.previousElementSibling;
     const subName = inputEl.value.trim();
 
     if (!subName) return;
@@ -445,11 +449,13 @@ async function addSubcatToCategory(catId) {
         if (!cat.subcats) cat.subcats = [];
         if (!cat.subcats.includes(subName)) {
             cat.subcats.push(subName);
-            inputEl.value = ''; // Limpia el input
-            // Actualizamos la lista en pantalla al instante para que se vea ya
+            inputEl.value = ''; 
+            
+            // Refresco local instantáneo
             renderCatManagementList();
             renderCategories();
-            // Y guardamos en segundo plano en Supabase
+            
+            // Sincronización en segundo plano
             await actualizarSubcategoriasEnSupabase(cat);
         }
     }
@@ -478,8 +484,8 @@ function renderCatManagementList() {
                     `).join('') : '<span style="font-size:0.75rem; color:var(--muted);">Sin subcategorías</span>'}
                 </div>
                 <div class="add-subcat-row">
-                    <input type="text" id="input_sub_${c.id}" placeholder="Nueva subcategoría...">
-                    <button onclick="addSubcatToCategory('${c.id}')">+ Añadir</button>
+                    <input type="text" placeholder="Nueva subcategoría...">
+                    <button onclick="addSubcatToCategory('${c.id}', this)">+ Añadir</button>
                 </div>
             </div>
         `).join('');
