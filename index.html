@@ -424,8 +424,11 @@ async function deleteSubcatFromCategory(catId, subcatName) {
         const cat = categories.find(c => c.id === catId);
         if (cat) {
             cat.subcats = cat.subcats.filter(s => s !== subcatName);
+            // Actualizamos la lista en pantalla al instante para que se vea ya
+            renderCatManagementList();
+            renderCategories();
+            // Y guardamos en segundo plano en Supabase
             await actualizarSubcategoriasEnSupabase(cat);
-            renderCatManagementList(); // <-- Esto actualiza la lista al momento
         }
     }
 }
@@ -442,10 +445,13 @@ async function addSubcatToCategory(catId) {
         if (!cat.subcats) cat.subcats = [];
         if (!cat.subcats.includes(subName)) {
             cat.subcats.push(subName);
-            await actualizarSubcategoriasEnSupabase(cat);
             inputEl.value = ''; // Limpia el input
-            renderCatManagementList(); // <-- Esto actualiza la lista al momento
-      }
+            // Actualizamos la lista en pantalla al instante para que se vea ya
+            renderCatManagementList();
+            renderCategories();
+            // Y guardamos en segundo plano en Supabase
+            await actualizarSubcategoriasEnSupabase(cat);
+        }
     }
 }
 
