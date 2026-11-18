@@ -223,10 +223,14 @@ body { background: var(--bg); color: var(--text); margin: 0; padding: 16px; padd
 
 <div class="header-buttons">
 
+<button class="btn-small" onclick="document.getElementById('excelFileInput').click()">📥 Importar</button>   
 <button class="btn-small" onclick="exportToExcel()">📊 Exportar</button>
 <button class="btn-small" onclick="setBudget()">🎯 Límite</button>
 
 </div>
+
+<!-- Input oculto para seleccionar el archivo -->
+<input type="file" id="excelFileInput" accept=".xlsx, .xls, .csv" style="display: none;" onchange="importFromExcel(event)">
 
 </div>
 
@@ -435,6 +439,108 @@ function exportToExcel() {
     // 4. Generamos el archivo .xlsx y forzamos su descarga
     const fechaActual = new Date().toISOString().split('T')[0];
     XLSX.writeFile(workbook, `gastos_${fechaActual}.xlsx`);
+}
+
+async function importFromExcel(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    
+    reader.onload = async function(e) {
+        try {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+
+            // Cogemos la primera pestaña del archivo de Excel
+            const firstSheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[firstSheetName];
+
+            // Convertimos la hoja a un array de objetos JSON
+            const rows = XLSX.utils.sheet_to_json(worksheet);
+
+            if (!rows || rows.length === 0) {
+                alert('El archivo está vacío o no tiene el formato correcto.');
+                return;
+            }
+
+            if (!confirm(`Se han encontrado ${rows.length} registros. ¿Deseas importarlos a la base de datos?`)) {
+                event.target.value = ''; // Limpiar input
+                return;
+            }
+
+            const allCats = getAllCategories();
+            let importedCount = 0;
+
+            // Recorremos cada fila del Excel y la adaptamos a la estructura de Supabase
+            for (let row of rows) {
+                // Buscamos las propiedades de forma flexible por si cambian las mayúsculas/minúsculas
+                const fecha = row['Fecha'] || row['fecha'] || new Date().toISOString().split('T')[0];
+                const importe = parseFloat(row['Importe (€)'] || row['Importe'] || row['importe'] || 0);
+                const nombreCatExcel = row['Categoría'] || row['categoria'] || '';
+                const nombreSubcatExcel = row['Subcategoría'] || row['subcategoria'] || '';
+                const nota = row['Nota'] || row['nota'] || '';
+
+                if (importe <= 0) continue; // Si el importe no es válido, saltamos
+
+                // Buscamos si la categoría del Excel coincide con alguna existente
+                let matchedCat = allCats.find(c => c.name.toLowerCase() === nombreCatExcel.toLowerCase());
+                let categoryId = matchedCat ? matchedCat.id : (allCats[0] ? allCats[0].id : 'compra');
+
+                // Verificamos si la subcategoría existe dentro de esa categoría
+                let subcatToSave = '';
+                if (matchedCat && matchedCat.subcats && matchedCat.subcats.includes(nombreSubcatExcel)) {
+                    subcatToSave = nombreSubcatExcel;
+                }
+
+                const expenseData = {
+                    amount: importe,
+                    category: categoryId,
+                    subcat: subcatToSave,
+                    note: nota,
+                    date: convertirFechaExcel(fecha)
+                };
+
+                // Guardamos en Supabase de forma individual
+                const { error } = await _supabase.from('expenses').insert([expenseData]);
+                if (!error) importedCount++;
+            }
+
+            alert(`¡Importación completada! Se han añadido ${importedCount} movimientos.`);
+            
+            // Recargamos los datos para reflejar los cambios en pantalla
+            await cargarDatosDesdeSupabase();
+
+        } catch (error) {
+            console.error(error);
+            alert('Hubo un error al procesar el archivo de Excel.');
+        } finally {
+            event.target.value = ''; // Limpiar el selector de archivos
+        }
+    };
+
+    reader.readAsArrayBuffer(file);
+}
+
+// Función auxiliar para normalizar formatos de fecha (por si vienen en texto tipo DD/MM/YYYY)
+function convertirFechaExcel(val) {
+    if (!val) return new Date().toISOString().split('T')[0];
+    
+    // Si viene en formato texto DD/MM/YYYY
+    if (typeof val === 'string' && val.includes('/')) {
+        const partes = val.split('/');
+        if (partes.length === 3) {
+            return `${partes[2]}-${partes[1].padStart(2, '0')}-${partes[0].padStart(2, '0')}`;
+        }
+    }
+    
+    // Si Excel lo interpreta como número serial de fecha
+    if (typeof val === 'number') {
+        const fechaEpoch = new Date(Math.round((val - (25567 + 2)) * 86400 * 1000));
+        return fechaEpoch.toISOString().split('T')[0];
+    }
+
+    return val; // Devolver tal cual si ya está en formato YYYY-MM-DD
 }
 
 // --- CONFIGURACIÓN DE SUPABASE ---
