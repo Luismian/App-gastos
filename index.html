@@ -359,24 +359,47 @@ body { background: var(--bg); color: var(--text); margin: 0; padding: 16px; padd
 
 </div>
 
-<div class="emoji-presets">
+<div style="font-size: 0.8rem; color: var(--muted); margin-bottom: 4px;">Elige un icono rápido:</div>
+<div class="emoji-presets" style="max-height: 120px; overflow-y: auto; padding-right: 4px;">
+    <!-- Compras y Alimentación -->
+    <button type="button" class="emoji-chip" onclick="pickEmoji('🛒')">🛒</button>
+    <button type="button" class="emoji-chip" onclick="pickEmoji('🍽️')">🍽️</button>
+    <button type="button" class="emoji-chip" onclick="pickEmoji('☕')">☕</button>
+    <button type="button" class="emoji-chip" onclick="pickEmoji('🍺')">🍺</button>
+    <button type="button" class="emoji-chip" onclick="pickEmoji('🍎')">🍎</button>
+    
+    <!-- Transporte y Vehículos -->
+    <button type="button" class="emoji-chip" onclick="pickEmoji('⛽')">⛽</button>
+    <button type="button" class="emoji-chip" onclick="pickEmoji('🚗')">🚗</button>
+    <button type="button" class="emoji-chip" onclick="pickEmoji('🚆')">🚆</button>
+    <button type="button" class="emoji-chip" onclick="pickEmoji('✈️')">✈️</button>
+    <button type="button" class="emoji-chip" onclick="pickEmoji('🅿️')">🅿️</button>
 
-<button type="button" class="emoji-chip" onclick="pickEmoji('🐾')">🐾</button>
+    <!-- Hogar y Servicios -->
+    <button type="button" class="emoji-chip" onclick="pickEmoji('🏠')">🏠</button>
+    <button type="button" class="emoji-chip" onclick="pickEmoji('💡')">💡</button>
+    <button type="button" class="emoji-chip" onclick="pickEmoji('💧')">💧</button>
+    <button type="button" class="emoji-chip" onclick="pickEmoji('📱')">📱</button>
+    <button type="button" class="emoji-chip" onclick="pickEmoji('🛠️')">🛠️</button>
+    <button type="button" class="emoji-chip" onclick="pickEmoji('🛋️')">🛋️</button>
 
-<button type="button" class="emoji-chip" onclick="pickEmoji('🎬')">🎬</button>
+    <!-- Ocio, Salud y Estilo de vida -->
+    <button type="button" class="emoji-chip" onclick="pickEmoji('🏃')">🏃</button>
+    <button type="button" class="emoji-chip" onclick="pickEmoji('🎬')">🎬</button>
+    <button type="button" class="emoji-chip" onclick="pickEmoji('💊')">💊</button>
+    <button type="button" class="emoji-chip" onclick="pickEmoji('📚')">📚</button>
+    <button type="button" class="emoji-chip" onclick="pickEmoji('🐾')">🐾</button>
+    <button type="button" class="emoji-chip" onclick="pickEmoji('👕')">👕</button>
+    <button type="button" class="emoji-chip" onclick="pickEmoji('🎁')">🎁</button>
+    <button type="button" class="emoji-chip" onclick="pickEmoji('💄')">💄</button>
 
-<button type="button" class="emoji-chip" onclick="pickEmoji('💊')">💊</button>
-
-<button type="button" class="emoji-chip" onclick="pickEmoji('🎁')">🎁</button>
-
-<button type="button" class="emoji-chip" onclick="pickEmoji('🏠')">🏠</button>
-
-<button type="button" class="emoji-chip" onclick="pickEmoji('📚')">📚</button>
-
-<button type="button" class="emoji-chip" onclick="pickEmoji('☕')">☕</button>
-
-<button type="button" class="emoji-chip" onclick="pickEmoji('🛠️')">🛠️</button>
-
+    <!-- Finanzas y Varios -->
+    <button type="button" class="emoji-chip" onclick="pickEmoji('💰')">💰</button>
+    <button type="button" class="emoji-chip" onclick="pickEmoji('💳')">💳</button>
+    <button type="button" class="emoji-chip" onclick="pickEmoji('🧾')">🧾</button>
+    <button type="button" class="emoji-chip" onclick="pickEmoji('👶')">👶</button>
+    <button type="button" class="emoji-chip" onclick="pickEmoji('🎓')">🎓</button>
+    <button type="button" class="emoji-chip" onclick="pickEmoji('🏷️')">🏷️</button>
 </div>
 
 <div class="modal-actions">
