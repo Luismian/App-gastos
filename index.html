@@ -23,8 +23,8 @@
         /* Cabecera y Presupuesto */
         .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
         .header h1 { font-size: 1.3rem; margin: 0; }
-        .header-buttons { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
-        .btn-small { background: none; border: 1px solid var(--border); padding: 5px 8px; border-radius: 8px; font-size: 0.75rem; color: var(--muted); cursor: pointer; }
+        .header-buttons { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+        .btn-small { background: none; border: 1px solid var(--border); padding: 5px 8px; border-radius: 8px; font-size: 0.75rem; color: var(--muted); cursor: pointer; display: flex; align-items: center; gap: 3px; }
         
         .summary-card { background: var(--card); border-radius: 16px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); margin-bottom: 16px; }
         .total-label { font-size: 0.85rem; color: var(--muted); }
@@ -115,6 +115,7 @@
     <div class="header">
         <h1 id="monthTitle">Gastos del Mes</h1>
         <div class="header-buttons">
+            <button class="btn-small" onclick="exportToCSV()">📥 CSV</button>
             <button class="btn-small" onclick="setBudget()">🎯 Límite</button>
         </div>
     </div>
@@ -148,7 +149,7 @@
         </div>
 
         <button class="btn-submit" id="btnSubmit" onclick="handleSubmitExpense()">+ Añadir Gasto</button>
-        <button class="btn-small" id="btnCancelEdit" style="display:none; width:100%; margin-top:8px; padding:10px; font-size:0.9rem;" onclick="cancelEdit()">❌ Cancelar edición</button>
+        <button class="btn-small" id="btnCancelEdit" style="display:none; width:100%; margin-top:8px; padding:10px; font-size:0.9rem; justify-content:center;" onclick="cancelEdit()">❌ Cancelar edición</button>
     </div>
 
     <div class="tabs">
@@ -221,7 +222,7 @@ const DEFAULT_CATEGORIES = [
 
 let categories = [];
 let expenses = []; 
-let monthlyBudget = 0;
+let monthlyBudget = parseFloat(localStorage.getItem('monthly_budget')) || 0;
 let editingExpenseId = null; // Controla si estamos editando un gasto
 
 function getAllCategories() {
@@ -479,203 +480,4 @@ function renderCatManagementList() {
                     ${c.subcats && c.subcats.length > 0 ? c.subcats.map(sub => `
                         <span class="subcat-tag-badge">
                             ${sub}
-                            <button onclick="deleteSubcatFromCategory('${c.id}', '${sub}')" title="Eliminar subcategoría">×</button>
-                        </span>
-                    `).join('') : '<span style="font-size:0.75rem; color:var(--muted);">Sin subcategorías</span>'}
-                </div>
-                <div class="add-subcat-row">
-                    <input type="text" placeholder="Nueva subcategoría...">
-                    <button onclick="addSubcatToCategory('${c.id}', this)">+ Añadir</button>
-                </div>
-            </div>
-        `).join('');
-}
-
-// --- GESTIÓN DE ENVÍO Y EDICIÓN DE GASTOS ---
-function handleSubmitExpense() {
-    const amount = parseFloat(document.getElementById('amount').value);
-    const note = document.getElementById('note').value.trim();
-    const date = document.getElementById('date').value;
-
-    if (!amount || amount <= 0) {
-        alert('Introduce un importe válido.');
-        return;
-    }
-
-    const expenseData = {
-        amount,
-        category: selectedCat,
-        subcat: selectedSubcat,
-        note,
-        date: date || new Date().toISOString().split('T')[0]
-    };
-
-    if (editingExpenseId !== null) {
-        actualizarGastoEnSupabase(editingExpenseId, expenseData);
-    } else {
-        guardarGastoEnSupabase(expenseData);
-    }
-
-    document.getElementById('amount').value = '';
-    document.getElementById('note').value = '';
-}
-
-function editExpense(id) {
-    const expense = expenses.find(e => e.id === id);
-    if (!expense) return;
-
-    document.getElementById('amount').value = expense.amount;
-    document.getElementById('note').value = expense.note || '';
-    document.getElementById('date').value = expense.date || new Date().toISOString().split('T')[0];
-
-    selectCategory(expense.category);
-    if (expense.subcat) {
-        selectedSubcat = expense.subcat;
-        renderSubcategories();
-    }
-
-    editingExpenseId = id;
-    const btnSubmit = document.getElementById('btnSubmit');
-    btnSubmit.innerText = '💾 Guardar Cambios';
-    btnSubmit.style.background = '#f59e0b';
-    document.getElementById('btnCancelEdit').style.display = 'block';
-
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-}
-
-function cancelEdit() {
-    editingExpenseId = null;
-    document.getElementById('amount').value = '';
-    document.getElementById('note').value = '';
-    document.getElementById('date').valueAsDate = new Date();
-    
-    const btnSubmit = document.getElementById('btnSubmit');
-    btnSubmit.innerText = '+ Añadir Gasto';
-    btnSubmit.style.background = 'var(--primary)';
-    document.getElementById('btnCancelEdit').style.display = 'none';
-}
-
-function deleteExpense(id) {
-    if(confirm('¿Eliminar este gasto?')) {
-        eliminarGastoEnSupabase(id);
-    }
-}
-
-function setBudget() {
-    const val = prompt('Introduce tu presupuesto mensual máximo (€):', monthlyBudget || '');
-    if (val !== null) {
-        monthlyBudget = parseFloat(val) || 0;
-        updateUI();
-    }
-}
-
-function formatMoney(num) {
-    return num.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
-}
-
-function updateUI() {
-    const allCats = getAllCategories();
-    const now = new Date();
-    const currentMonth = now.toISOString().slice(0, 7);
-    const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
-    document.getElementById('monthTitle').innerText = `Gastos de ${monthNames[now.getMonth()]}`;
-
-    const monthExpenses = expenses.filter(e => e.date && e.date.startsWith(currentMonth));
-    const total = monthExpenses.reduce((sum, e) => sum + e.amount, 0);
-
-    document.getElementById('totalSpent').innerText = formatMoney(total);
-
-    const bar = document.getElementById('progressBar');
-    const status = document.getElementById('budgetStatus');
-    const remaining = document.getElementById('budgetRemaining');
-
-    if (monthlyBudget > 0) {
-        const pct = Math.min((total / monthlyBudget) * 100, 100);
-        bar.style.width = pct + '%';
-        bar.style.background = pct > 90 ? 'var(--danger)' : (pct > 75 ? '#f59e0b' : 'var(--primary)');
-        status.innerText = `Límite: ${formatMoney(monthlyBudget)}`;
-        const left = monthlyBudget - total;
-        remaining.innerText = left >= 0 ? `Quedan ${formatMoney(left)}` : `Excedido en ${formatMoney(Math.abs(left))}`;
-    } else {
-        bar.style.width = '0%';
-        status.innerText = 'Pulsa "🎯 Límite" para fijar tope';
-        remaining.innerText = '';
-    }
-
-    const listDiv = document.getElementById('expensesList');
-    if (expenses.length === 0) {
-        listDiv.innerHTML = '<p style="text-align:center; color:var(--muted); font-size:0.9rem;">Aún no hay gastos registrados.</p>';
-    } else {
-        listDiv.innerHTML = expenses.slice(0, 30).map(e => {
-            const cat = allCats.find(c => c.id === e.category) || { name: 'Otros', icon: '🏷️' };
-            const subText = e.subcat ? ` • ${e.subcat}` : '';
-            const mainTitle = e.note ? e.note : (e.subcat || cat.name);
-            const dateFormatted = e.date ? e.date.split('-').reverse().join('/') : '';
-            return `
-                <div class="expense-item">
-                    <div class="exp-left">
-                        <div class="exp-icon">${cat.icon}</div>
-                        <div>
-                            <div class="exp-title">${mainTitle}</div>
-                            <div class="exp-sub">${cat.name}${subText} • ${dateFormatted}</div>
-                        </div>
-                    </div>
-                    <div class="exp-right">
-                        <span class="exp-amount">-${formatMoney(e.amount)}</span>
-                        <button class="btn-small" onclick="editExpense(${e.id})" style="border:none; background:none; cursor:pointer; font-size:1rem;" title="Editar">✏️</button>
-                        <button class="btn-del" onclick="deleteExpense(${e.id})">×</button>
-                    </div>
-                </div>
-            `;
-        }).join('');
-    }
-
-    const statsDiv = document.getElementById('categoryStats');
-    if (total === 0) {
-        statsDiv.innerHTML = '<p style="text-align:center; color:var(--muted); font-size:0.9rem;">Sin gastos este mes.</p>';
-    } else {
-        const totalsByCat = allCats.map(cat => {
-            const catExpenses = monthExpenses.filter(e => e.category === cat.id);
-            const sum = catExpenses.reduce((s, e) => s + e.amount, 0);
-            
-            let subcatsStats = [];
-            if (cat.subcats) {
-                subcatsStats = cat.subcats.map(sub => {
-                    const subSum = catExpenses.filter(e => e.subcat === sub).reduce((s, e) => s + e.amount, 0);
-                    return { name: sub, sum: subSum };
-                }).filter(s => s.sum > 0);
-            }
-            return { ...cat, sum, subcatsStats };
-        }).filter(c => c.sum > 0).sort((a, b) => b.sum - a.sum);
-
-        statsDiv.innerHTML = totalsByCat.map(c => {
-            const pct = ((c.sum / total) * 100).toFixed(1);
-            let subHtml = '';
-            if (c.subcatsStats && c.subcatsStats.length > 0) {
-                subHtml = c.subcatsStats.map(sub => `<div class="subcat-stat-list">↳ ${sub.name}: ${formatMoney(sub.sum)}</div>`).join('');
-            }
-            return `
-                <div class="cat-stat">
-                    <div class="cat-stat-header">
-                        <span>${c.icon} ${c.name} (${pct}%)</span>
-                        <span>${formatMoney(c.sum)}</span>
-                    </div>
-                    <div class="stat-bar-bg">
-                        <div class="stat-bar-fill" style="width:${pct}%"></div>
-                    </div>
-                    ${subHtml}
-                </div>
-            `;
-        }).join('');
-    }
-}
-
-function switchTab(tab, el) {
-    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-    el.classList.add('active');
-    document.getElementById('listView').style.display = tab === 'list' ? 'block' : 'none';
-    document.getElementById('statsView').style.display = tab === 'stats' ? 'block' : 'none';
-}
-</script>
-</body>
-</html>
+                            <button onclick="deleteSubcatFromCategory('${c.id
