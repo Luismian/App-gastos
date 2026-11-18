@@ -5,6 +5,7 @@
 <head>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
 <meta charset="UTF-8">
 
@@ -222,6 +223,7 @@ body { background: var(--bg); color: var(--text); margin: 0; padding: 16px; padd
 
 <div class="header-buttons">
 
+<button class="btn-small" onclick="exportToExcel()">📊 Exportar</button>
 <button class="btn-small" onclick="setBudget()">🎯 Límite</button>
 
 </div>
@@ -392,6 +394,48 @@ body { background: var(--bg); color: var(--text); margin: 0; padding: 16px; padd
 
 
 <script>
+
+function exportToExcel() {
+    if (!expenses || expenses.length === 0) {
+        alert('No hay movimientos registrados para exportar.');
+        return;
+    }
+
+    const allCats = getAllCategories();
+
+    // 1. Preparamos los datos en un formato de tabla limpio para Excel
+    const datosParaExcel = expenses.map(e => {
+        const cat = allCats.find(c => c.id === e.category) || { name: 'Otros' };
+        return {
+            "Fecha": e.date || '',
+            "Importe (€)": e.amount, // Se guarda como número real para que Excel permita sumar/calcular
+            "Categoría": cat.name,
+            "Subcategoría": e.subcat || '',
+            "Nota": e.note || ''
+        };
+    });
+
+    // 2. Creamos una hoja de cálculo con SheetJS
+    const worksheet = XLSX.utils.json_to_sheet(datosParaExcel);
+
+    // Ajuste automático opcional del ancho de las columnas para que se vea ordenado
+    const colWidths = [
+        { wch: 12 }, // Fecha
+        { wch: 12 }, // Importe
+        { wch: 20 }, // Categoría
+        { wch: 20 }, // Subcategoría
+        { wch: 30 }  // Nota
+    ];
+    worksheet['!cols'] = colWidths;
+
+    // 3. Creamos el libro de trabajo (Workbook)
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Movimientos");
+
+    // 4. Generamos el archivo .xlsx y forzamos su descarga
+    const fechaActual = new Date().toISOString().split('T')[0];
+    XLSX.writeFile(workbook, `gastos_${fechaActual}.xlsx`);
+}
 
 // --- CONFIGURACIÓN DE SUPABASE ---
 
