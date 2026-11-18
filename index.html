@@ -75,8 +75,8 @@
         .exp-icon { font-size: 1.4rem; background: var(--bg); width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border-radius: 10px; }
         .exp-title { font-weight: 600; font-size: 0.9rem; }
         .exp-sub { font-size: 0.75rem; color: var(--muted); }
-        .exp-right { text-align: right; display: flex; align-items: center; gap: 10px; }
-        .exp-amount { font-weight: 700; font-size: 0.95rem; }
+        .exp-right { text-align: right; display: flex; align-items: center; gap: 6px; }
+        .exp-amount { font-weight: 700; font-size: 0.95rem; margin-right: 4px; }
         .btn-del { background: none; border: none; color: var(--danger); font-size: 1.1rem; cursor: pointer; padding: 4px; }
 
         /* Desglose */
@@ -147,7 +147,8 @@
             <input type="date" id="date" class="input-date">
         </div>
 
-        <button class="btn-submit" onclick="addExpense()">+ Añadir Gasto</button>
+        <button class="btn-submit" id="btnSubmit" onclick="handleSubmitExpense()">+ Añadir Gasto</button>
+        <button class="btn-small" id="btnCancelEdit" style="display:none; width:100%; margin-top:8px; padding:10px; font-size:0.9rem;" onclick="cancelEdit()">❌ Cancelar edición</button>
     </div>
 
     <div class="tabs">
@@ -221,6 +222,7 @@ const DEFAULT_CATEGORIES = [
 let categories = [];
 let expenses = []; 
 let monthlyBudget = 0;
+let editingExpenseId = null; // Controla si estamos editando un gasto
 
 function getAllCategories() {
     return categories;
@@ -236,7 +238,6 @@ window.onload = async function() {
 };
 
 async function cargarDatosDesdeSupabase() {
-    // 1. Cargar categorías (si la tabla está vacía, inserta las por defecto)
     let { data: catData, error: catError } = await _supabase.from('categories').select('*');
     
     if (catError || !catData || catData.length === 0) {
@@ -253,7 +254,6 @@ async function cargarDatosDesdeSupabase() {
         selectedSubcat = categories[0].subcats && categories[0].subcats.length > 0 ? categories[0].subcats[0] : '';
     }
 
-    // 2. Cargar gastos
     const { data: expData, error: expError } = await _supabase
         .from('expenses')
         .select('*')
@@ -273,6 +273,16 @@ async function guardarGastoEnSupabase(expense) {
     if (error) {
         alert('Hubo un error al guardar el gasto.');
     } else {
+        await cargarDatosDesdeSupabase();
+    }
+}
+
+async function actualizarGastoEnSupabase(id, expense) {
+    const { error } = await _supabase.from('expenses').update(expense).eq('id', id);
+    if (error) {
+        alert('Hubo un error al actualizar el gasto.');
+    } else {
+        cancelEdit();
         await cargarDatosDesdeSupabase();
     }
 }
@@ -401,7 +411,6 @@ async function saveNewCategory() {
         subcats: subcats
     };
 
-    // Actualización local inmediata
     categories.push(newCat);
     renderCatManagementList();
     renderCategories();
@@ -412,7 +421,6 @@ async function saveNewCategory() {
     document.getElementById('newCatName').value = '';
     document.getElementById('newCatSubcats').value = '';
 
-    // Guardar en Supabase en segundo plano
     await guardarCategoriaEnSupabase(newCat);
 }
 
@@ -427,12 +435,8 @@ async function deleteSubcatFromCategory(catId, subcatName) {
         const cat = categories.find(c => c.id === catId);
         if (cat) {
             cat.subcats = cat.subcats.filter(s => s !== subcatName);
-            
-            // Refresco local instantáneo
             renderCatManagementList();
             renderCategories();
-            
-            // Sincronización en segundo plano
             await actualizarSubcategoriasEnSupabase(cat);
         }
     }
@@ -450,12 +454,8 @@ async function addSubcatToCategory(catId, btnElement) {
         if (!cat.subcats.includes(subName)) {
             cat.subcats.push(subName);
             inputEl.value = ''; 
-            
-            // Refresco local instantáneo
             renderCatManagementList();
             renderCategories();
-            
-            // Sincronización en segundo plano
             await actualizarSubcategoriasEnSupabase(cat);
         }
     }
@@ -491,7 +491,8 @@ function renderCatManagementList() {
         `).join('');
 }
 
-function addExpense() {
+// --- GESTIÓN DE ENVÍO Y EDICIÓN DE GASTOS ---
+function handleSubmitExpense() {
     const amount = parseFloat(document.getElementById('amount').value);
     const note = document.getElementById('note').value.trim();
     const date = document.getElementById('date').value;
@@ -501,7 +502,7 @@ function addExpense() {
         return;
     }
 
-    const expense = {
+    const expenseData = {
         amount,
         category: selectedCat,
         subcat: selectedSubcat,
@@ -509,10 +510,49 @@ function addExpense() {
         date: date || new Date().toISOString().split('T')[0]
     };
 
-    guardarGastoEnSupabase(expense);
-    
+    if (editingExpenseId !== null) {
+        actualizarGastoEnSupabase(editingExpenseId, expenseData);
+    } else {
+        guardarGastoEnSupabase(expenseData);
+    }
+
     document.getElementById('amount').value = '';
     document.getElementById('note').value = '';
+}
+
+function editExpense(id) {
+    const expense = expenses.find(e => e.id === id);
+    if (!expense) return;
+
+    document.getElementById('amount').value = expense.amount;
+    document.getElementById('note').value = expense.note || '';
+    document.getElementById('date').value = expense.date || new Date().toISOString().split('T')[0];
+
+    selectCategory(expense.category);
+    if (expense.subcat) {
+        selectedSubcat = expense.subcat;
+        renderSubcategories();
+    }
+
+    editingExpenseId = id;
+    const btnSubmit = document.getElementById('btnSubmit');
+    btnSubmit.innerText = '💾 Guardar Cambios';
+    btnSubmit.style.background = '#f59e0b';
+    document.getElementById('btnCancelEdit').style.display = 'block';
+
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function cancelEdit() {
+    editingExpenseId = null;
+    document.getElementById('amount').value = '';
+    document.getElementById('note').value = '';
+    document.getElementById('date').valueAsDate = new Date();
+    
+    const btnSubmit = document.getElementById('btnSubmit');
+    btnSubmit.innerText = '+ Añadir Gasto';
+    btnSubmit.style.background = 'var(--primary)';
+    document.getElementById('btnCancelEdit').style.display = 'none';
 }
 
 function deleteExpense(id) {
@@ -582,6 +622,7 @@ function updateUI() {
                     </div>
                     <div class="exp-right">
                         <span class="exp-amount">-${formatMoney(e.amount)}</span>
+                        <button class="btn-small" onclick="editExpense(${e.id})" style="border:none; background:none; cursor:pointer; font-size:1rem;" title="Editar">✏️</button>
                         <button class="btn-del" onclick="deleteExpense(${e.id})">×</button>
                     </div>
                 </div>
